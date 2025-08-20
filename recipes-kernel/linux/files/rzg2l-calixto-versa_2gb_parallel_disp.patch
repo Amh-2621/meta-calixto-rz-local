@@ -1,0 +1,93 @@
+diff --git a/arch/arm64/boot/dts/renesas/rzg2l-calixto-versa_2GB.dts b/arch/arm64/boot/dts/renesas/rzg2l-calixto-versa_2GB.dts
+index 8a26b07b5..992cc5c72 100644
+--- a/arch/arm64/boot/dts/renesas/rzg2l-calixto-versa_2GB.dts
++++ b/arch/arm64/boot/dts/renesas/rzg2l-calixto-versa_2GB.dts
+@@ -118,30 +118,30 @@
+ 		regulator-name = "vcc_sys";
+ 	};
+ 	
+-//	panel_rgb: panel-rgb {
++	panel_rgb: panel-rgb {
+ 
+ //             compatible = "giantplus,gpm940b0";   /* Used this compatible if the panel is supported in panel-simple */
+-//              compatible = "panel-dpi";
+-//               /* panel-timing is used for "panel-dpi" compatible */
+-//               panel-timing {
+-//                       clock-frequency = <9000000>;
+-//                       hactive = <480>;
+-//                       vactive = <272>;
+-//                       hsync-len = <43>;
+-//                       hfront-porch = <8>;
+-//                       hback-porch = <41>;
+-//                       vfront-porch = <4>;
+-//                       vback-porch = <10>;
+-//                       vsync-len = <21>;
+-//               };
+-
+-//              port {
+-//                       panel_in_rgb: endpoint {
+-//                               remote-endpoint = <&du_out_rgb>;
+-//                       };
+-//               };
+-
+-//       };*/
++              compatible = "panel-dpi";
++               /* panel-timing is used for "panel-dpi" compatible */
++               panel-timing {
++                       clock-frequency = <9000000>;
++                       hactive = <480>;
++                       vactive = <272>;
++                       hsync-len = <43>;
++                       hfront-porch = <8>;
++                       hback-porch = <41>;
++                       vfront-porch = <4>;
++                       vback-porch = <10>;
++                       vsync-len = <21>;
++               };
++
++              port {
++                       panel_in_rgb: endpoint {
++                               remote-endpoint = <&du_out_rgb>;
++                       };
++               };
++
++       };
+ 	
+ 	clk_ext_camera: clk_ext_camera {
+ 		compatible = "fixed-clock";
+@@ -743,17 +743,17 @@
+ 
+ 
+ &du {
+-//	pinctrl-0 = <&du_pins>;
+-//	pinctrl-names = "default";
++	pinctrl-0 = <&du_pins>;
++	pinctrl-names = "default";
+ 	status = "okay";
+ 
+-//	ports {
+-//		port@0 {
+-//			du_out_rgb: endpoint {
+-//						remote-endpoint = <&panel_in_rgb>;
+-//			};
+-//		};
+-//	};
++	ports {
++		port@0 {
++			du_out_rgb: endpoint {
++						remote-endpoint = <&panel_in_rgb>;
++			};
++		};
++	};
+ };
+ 
+ &csi2 {
+@@ -775,7 +775,7 @@
+ };
+ 
+ &dsi0 {
+-	status = "okay";
++	status = "disabled";
+ 	#address-cells = <1>;
+ 	#size-cells = <0>;
+ 	ports {
