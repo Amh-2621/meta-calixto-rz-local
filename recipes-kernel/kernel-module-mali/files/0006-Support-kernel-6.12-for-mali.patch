@@ -1,0 +1,151 @@
+From cf5fb7fb7f3691fda6cdd484059000001743659a Mon Sep 17 00:00:00 2001
+From: Sang Ngo <sang.ngo.yf@renesas.com>
+Date: Fri, 18 Apr 2025 15:33:30 +0700
+Subject: [PATCH] Support kernel 6.12 for mali
+
+Signed-off-by: Sang Ngo <sang.ngo.yf@renesas.com>
+---
+ .../arm/midgard/device/mali_kbase_device.c    |  6 ++++++
+ .../gpu/arm/midgard/mali_kbase_core_linux.c   | 20 +++++++++++++++++++
+ .../gpu/arm/midgard/mali_kbase_kinstr_jm.c    |  4 ++++
+ drivers/gpu/arm/midgard/mali_malisw.h         |  6 +++++-
+ 4 files changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/arm/midgard/device/mali_kbase_device.c b/drivers/gpu/arm/midgard/device/mali_kbase_device.c
+index 670b2c2..e00be1c 100644
+--- a/drivers/gpu/arm/midgard/device/mali_kbase_device.c
++++ b/drivers/gpu/arm/midgard/device/mali_kbase_device.c
+@@ -308,10 +308,16 @@ int kbase_device_misc_init(struct kbase_device *const kbdev)
+ 
+ 	/* There is no limit for Mali, so set to max. */
+ 	if (kbdev->dev->dma_parms)
++#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
++		dma_set_max_seg_size(kbdev->dev, UINT_MAX);
++#else
+ 		err = dma_set_max_seg_size(kbdev->dev, UINT_MAX);
++
+ 	if (err)
+ 		goto dma_set_mask_failed;
+ 
++#endif
++
+ 	kbdev->nr_hw_address_spaces = (s8)kbdev->gpu_props.num_address_spaces;
+ 
+ 	err = kbase_device_all_as_init(kbdev);
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+index 7b83103..b93bd2b 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_core_linux.c
+@@ -694,6 +694,10 @@ static int kbase_open(struct inode *inode, struct file *filp)
+ 
+ 	if (!kbdev)
+ 		return -ENODEV;
++#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
++	if (WARN_ON_ONCE(!(filp->f_op->fop_flags & FOP_UNSIGNED_OFFSET)))
++		return -EINVAL;
++#endif
+ 
+ #if (KERNEL_VERSION(6, 0, 0) > LINUX_VERSION_CODE)
+ 	/* Set address space operations for page migration */
+@@ -714,7 +718,9 @@ static int kbase_open(struct inode *inode, struct file *filp)
+ 	}
+ 
+ 	filp->private_data = kfile;
++#if (KERNEL_VERSION(6, 12, 0) > LINUX_VERSION_CODE)
+ 	filp->f_mode |= FMODE_UNSIGNED_OFFSET;
++#endif
+ 
+ 	return 0;
+ 
+@@ -2151,6 +2157,9 @@ static const struct file_operations kbase_fops = {
+ 	.mmap = kbase_mmap,
+ 	.check_flags = kbase_check_flags,
+ 	.get_unmapped_area = kbase_get_unmapped_area,
++#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
++	.fop_flags      = FOP_UNSIGNED_OFFSET,
++#endif
+ };
+ 
+ /**
+@@ -5695,18 +5704,29 @@ void kbase_sysfs_term(struct kbase_device *kbdev)
+ 	put_device(kbdev->dev);
+ }
+ 
++#if (KERNEL_VERSION(6, 11, 0) <= LINUX_VERSION_CODE)
++static void kbase_platform_device_remove(struct platform_device *pdev)
++#else
+ static int kbase_platform_device_remove(struct platform_device *pdev)
++#endif
+ {
+ 	struct kbase_device *kbdev = to_kbase_device(&pdev->dev);
+ 
+ 	if (!kbdev)
++#if (KERNEL_VERSION(6, 11, 0) <= LINUX_VERSION_CODE)
++		return;
++#else
+ 		return -ENODEV;
++#endif
+ 
+ 	kbase_device_term(kbdev);
+ 	dev_set_drvdata(kbdev->dev, NULL);
+ 	kbase_device_free(kbdev);
+ 
++#if (KERNEL_VERSION(6, 11, 0) > LINUX_VERSION_CODE)
++
+ 	return 0;
++#endif
+ }
+ 
+ void kbase_backend_devfreq_term(struct kbase_device *kbdev)
+diff --git a/drivers/gpu/arm/midgard/mali_kbase_kinstr_jm.c b/drivers/gpu/arm/midgard/mali_kbase_kinstr_jm.c
+index f0eea7a..cc5cf83 100644
+--- a/drivers/gpu/arm/midgard/mali_kbase_kinstr_jm.c
++++ b/drivers/gpu/arm/midgard/mali_kbase_kinstr_jm.c
+@@ -643,7 +643,11 @@ static __poll_t reader_poll(struct file *const file, struct poll_table_struct *c
+ 
+ /* The file operations virtual function table */
+ static const struct file_operations file_operations = { .owner = THIS_MODULE,
++#if (KERNEL_VERSION(6, 12, 0) <= LINUX_VERSION_CODE)
++							.llseek = NULL,
++#else
+ 							.llseek = no_llseek,
++#endif
+ 							.read = reader_read,
+ 							.poll = reader_poll,
+ 							.release = reader_release };
+diff --git a/drivers/gpu/arm/midgard/mali_malisw.h b/drivers/gpu/arm/midgard/mali_malisw.h
+index a44765a..a7d686d 100644
+--- a/drivers/gpu/arm/midgard/mali_malisw.h
++++ b/drivers/gpu/arm/midgard/mali_malisw.h
+@@ -27,7 +27,9 @@
+ #define _MALISW_H_
+ 
+ #include <linux/version.h>
++#include <linux/vmalloc.h>
+ 
++#if (KERNEL_VERSION(6, 11, 0) > LINUX_VERSION_CODE)
+ /**
+  * MIN - Return the lesser of two values.
+  * @x: value1
+@@ -36,8 +38,8 @@
+  * As a macro it may evaluate its arguments more than once.
+  * Refer to MAX macro for more details
+  */
+-#define MIN(x, y) ((x) < (y) ? (x) : (y))
+ 
++#define MIN(x, y) ((x) < (y) ? (x) : (y))
+ /**
+  * MAX - Return the greater of two values.
+  * @x: value1
+@@ -52,6 +54,8 @@
+  */
+ #define MAX(x, y) ((x) < (y) ? (y) : (x))
+ 
++#endif
++
+ /**
+  * CSTD_UNUSED - Function-like macro for suppressing unused variable warnings.
+  *
+-- 
+2.25.1
+
